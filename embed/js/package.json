@@ -1,0 +1,16 @@
+{
+    "name": "smartlike-embed-js",
+    "version": "0.0.1",
+    "author": "Smartlike developers <developers@smartlike.org>",
+    "license": "AGPL-3.0",
+    "scripts": {
+        "build": "npm install && rm -rf dist && cp -r src dist && browserify -r blakejs -s blakejs -o dist/embed.smartlike.org/third-party/blakejs.browser.js && browserify -r tweetnacl -s tweetnacl -o dist/embed.smartlike.org/third-party/tweetnacl.browser.js && browserify -r bip39 -s bip39 --exclude=./wordlists/japanese.json --exclude=./wordlists/spanish.json --exclude=./wordlists/italian.json --exclude=./wordlists/french.json --exclude=./wordlists/korean.json --exclude=./wordlists/czech.json --exclude=./wordlists/portuguese.json --exclude=./wordlists/chinese_traditional.json --exclude=./wordlists/chinese_simplified.json  > dist/embed.smartlike.org/third-party/bip39.browser.js",
+        "clean": "rm -rf node_modules/ dist/ package-lock.json"
+    },
+    "dependencies": {
+        "bip39": "^3.0.4",
+        "blakejs": "^1.1.1",
+        "browserify": "^17.0.0",
+        "tweetnacl": "^1.0.3"
+    }
+}

@@ -1,0 +1,10 @@
+   
+[workspace]
+members = [
+  "gateway",
+  "vote",
+]
+
+exclude = [
+]
+

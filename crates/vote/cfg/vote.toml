@@ -1,0 +1,5 @@
+network_address = "https://smartlike.org/network"
+smartlike_account = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+smartlike_key = "xxxx xxxxxxx xxxx xxxxxx xxxxx xxxxxx xxxxx xxxxxxx xxxxx xxxx xxxxx xxxx"
+currency_exchange_source = "openexchangerates.org"
+currency_exchange_query = "https://openexchangerates.org/api/latest.json?app_id=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"

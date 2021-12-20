@@ -1,0 +1,20 @@
+[package]
+
+name = "smartlike-gateway"
+version = "0.0.1"
+authors = ["developers@smartlike.org"]
+edition = "2018"
+
+[dependencies]
+anyhow = "1.0.47"
+serde = { version = "1.0", features = [ "derive" ] }
+serde_json = { version = "1.0.51", features = [ "preserve_order" ] }
+clap = "~2.33"
+toml = "0.5.8"
+url = "2.1.0"
+actix-web = "3.3.2"
+actix-rt = "1.1.1"
+actix-cors = "0.5.4"
+reqwest = { version = "0.10", features = ["blocking", "json"] }
+rocksdb = "0.17.0"
+smartlike-embed-lib = { path = "../../embed/rust" }

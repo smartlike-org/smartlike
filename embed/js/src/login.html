@@ -1,0 +1,98 @@
+<html>
+
+<head>
+    <style>
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1;
+            padding-top: 100px;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+        }
+
+        .modal-content {
+            position: absolute;
+            width: 100%;
+        }
+
+        .iframe {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            height: 100%;
+            max-width: 600px;
+            width: 100%;
+            border: 1px solid rgba(0, 0, 0, 0.3);
+            border-radius: 5px;
+            -webkit-box-shadow: 0 3px 7px rgba(0, 0, 0, 0.3);
+            -moz-box-shadow: 0 3px 7px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 3px 7px rgba(0, 0, 0, 0.3);
+            -webkit-background-clip: padding-box;
+            -moz-background-clip: padding-box;
+            background-clip: padding-box;
+        }
+    </style>
+</head>
+
+<body>
+    <button id="login_btn">Login</button>
+    <div id="modal" class="modal">
+        <div class="modal-content" id="modal-content"></div>
+    </div>
+
+    <script>
+        var modal = document.getElementById("modal");
+        var container = document.getElementById("modal-content");
+
+        // call back
+        window.addEventListener('message', function () {
+            if (event.origin !== "https://embed.smartlike.org")
+                return
+
+            if ("type" in event.data) {
+                if (event.data.type == "resize")
+                    container.style.height = event.data.data + "px"
+                else {
+                    if (event.data.type == "checkout") {
+                        if (event.data.data.state == "ok") {
+                            console.log("checkout ok " + event.data.data)
+                        } else {
+                            console.log("checkout error " + event.data.data.state)
+                        }
+                    } else if (event.data.type == "cancel") {}
+                    container.removeChild(document.getElementById("smartlikeModal"))
+                    modal.style.display = "none"
+                }
+            }
+        }, false)
+
+        // embed
+        document.getElementById("login_btn").onclick = function () {
+            var url = "https://embed.smartlike.org/modal.html?" +
+                // parent page domain
+                "callback=*" +
+                // transaction type
+                "&type=login" +
+                // prompt
+                "&title=" + encodeURIComponent("You are about to log in to domain") +
+                // token to sign
+                "&token=" + Math.random()
+
+            // show modal
+            var f = document.createElement("iframe");
+            f.id = "smartlikeModal";
+            f.name = "smartlikeModal";
+            f.src = url
+            f.className = "iframe"
+            modal.style.display = "block"
+            container.appendChild(f);
+        }
+    </script>
+</body>
+
+</html>

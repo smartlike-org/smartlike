@@ -1,0 +1,122 @@
+<html>
+
+<head>
+    <style>
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1;
+            padding-top: 100px;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+        }
+
+        .modal-content {
+            position: absolute;
+            width: 100%;
+        }
+
+        .iframe {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            height: 100%;
+            max-width: 600px;
+            width: 100%;
+            border: 1px solid rgba(0, 0, 0, 0.3);
+            border-radius: 5px;
+            -webkit-box-shadow: 0 3px 7px rgba(0, 0, 0, 0.3);
+            -moz-box-shadow: 0 3px 7px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 3px 7px rgba(0, 0, 0, 0.3);
+            -webkit-background-clip: padding-box;
+            -moz-background-clip: padding-box;
+            background-clip: padding-box;
+        }
+    </style>
+</head>
+
+<body>
+    <button id="donate_btn">Donate</button>
+    <div id="modal" class="modal">
+        <div class="modal-content" id="modal-content"></div>
+    </div>
+
+    <script>
+        var modal = document.getElementById("modal");
+        var container = document.getElementById("modal-content");
+
+        // call back
+        window.addEventListener('message', function () {
+            if (event.origin !== "https://embed.smartlike.org")
+                return
+
+            if ("type" in event.data) {
+                if (event.data.type == "resize")
+                    container.style.height = event.data.data + "px"
+                else {
+                    if (event.data.type == "checkout") {
+                        var d = event.data.data
+                        if (d.state == "ok") {
+                            console.log("checkout ok " + d)
+                            // transcation was published, check if it was validated
+                            setTimeout(verifyTransaction, 2000, d.type, d.tx)
+                        } else {
+                            console.log("checkout error " + d.state)
+                        }
+                    } else if (event.data.type == "cancel") {}
+                    container.removeChild(document.getElementById("smartlikeModal"))
+                    modal.style.display = "none"
+                }
+            }
+        }, false)
+
+        // check if transction was validated
+        function verifyTransaction(type, tx) {
+            fetch("https://embed.smartlike.org/tx/" + tx)
+                .then(res => res.text())
+                .then(res_text => {
+                    console.log(res_text)
+                })
+        }
+
+        // embed
+        document.getElementById("donate_btn").onclick = function () {
+            var url = "https://embed.smartlike.org/modal.html?" +
+                // parent page URL
+                "callback=*" +
+                // show charts for this channel to see the results
+                "&charts=en.wikipedia.org" +
+                // suggest this account first when users need to fill their accounts
+                "add_funds=en.wikipedia.org" +
+                // transaction type
+                "&type=donate" +
+                // recipient URL
+                "&recipient=https://en.wikipedia.org/wiki/Wikipedia:About" +
+                // recipient title
+                "&title=" +
+                encodeURIComponent(
+                    "Wikipedia:About") +
+                // suggested amount
+                "&suggest_amount=0.01" +
+                // recipient currency
+                "&currency=EUR" +
+                // token to sign
+                "&token=" + Math.random()
+
+            // show modal
+            var f = document.createElement("iframe");
+            f.id = "smartlikeModal";
+            f.name = "smartlikeModal";
+            f.src = url
+            f.className = "iframe"
+            modal.style.display = "block"
+            container.appendChild(f);
+        }
+    </script>
+</body>
+
+</html>

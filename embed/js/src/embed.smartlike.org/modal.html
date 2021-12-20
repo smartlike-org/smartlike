@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>smartlike</title>
+    <link type="text/css" href="smartlike.css" rel="stylesheet" />
+    <script src="third-party/blakejs.browser.js"></script>
+    <script src="third-party/tweetnacl.browser.js"></script>
+    <script src="third-party/bip39.browser.js"></script>
+    <script src="smartlike.js"></script>
+    <script>
+    </script>
+</head>
+
+<body>
+
+    <div style="font-family: system-ui; /*margin-bottom: 20px;*/ font-size: 15px;">
+        <span id="close" class="close">&times;</span>
+        <div class="wrapper" style="visibility: hidden;" id="content">
+            <div style="/*margin-bottom: 20px;*/ line-height: 22px; text-align: justify">
+                <div style="text-align: center">
+                    <div id="title" style="margin-bottom: 20px;font-size: 20px;font-weight: 500;"></div>
+                    <form autoComplete="off" style="margin-bottom: 10px;" id="amount_selector">
+                        <input type="hidden" id="username" name="username" value="" autoComplete="username" />
+                        <div style="display: inline-flex; margin-top: 10px; margin-bottom: 15px;width:100%">
+                            <input id="amount" type="number" step="0.01" class="amount" autoComplete="never" />
+                            <div style="margin: auto; margin-left: 10px; margin-right: 10px" id="currency"></div>
+                            <div class="slidercontainer">
+                                <input id="slider" type="range" min="0.01" max="5" step="0.01" />
+                            </div>
+                        </div>
+
+                        <div id="comment" style="display:none;">
+                            <input id="comment" class="text-input" placeholder="optional comment" />
+                        </div>
+                    </form>
+
+                </div>
+
+                <div style="height:20px;">
+                    <div id="profile" style="display:none;">
+                        Use <span id="profile_id" style="font-weight: 500;"></span>&nbsp;or
+                    </div>
+                </div>
+                <div>
+                    Select an identity saved in your password manager or
+                    generate a new one:
+                </div>
+                <div>
+                    <input id="password-init" class="text-input" type="password" name="account_key" />
+                </div>
+
+                <div style="width: 100%; text-align: center">
+                    <button class="submit" id="password-init-submit" type="submit" onClick="submit()">
+                    </button>
+
+                    <div class="links">
+                        <div class="link" onClick="generateKey()">
+                            new identity
+                        </div>
+                        <div class="link" id="add_funds">
+                            fill account
+                        </div>
+                        <div class="link" onclick="window.open('https://blog.smartlike.org/privacy','_blank')">
+                            privacy
+                        </div>
+                        <div class="link" id="charts">
+                            charts
+                        </div>
+                        <div class="link" id="install-extension" style="display: none;"
+                            onclick="window.open('https://chrome.google.com/webstore/detail/smartlike/hbeaghhbggdilbedobkfhneaajmnfipc','_blank')">
+                            install smartlike extension
+                        </div>
+                    </div>
+
+                    <div style="margin: auto; /*margin-bottom: 25px;*/">
+                        <div style="margin-top: 10px;">
+                            <div id="invalid-secret" style="text-align: left;color: red; display: none">
+                                Invalid secret. Please use a randomly generated one.
+                            </div>
+                            <div id="no-funds" style="text-align: left;display: none;color: red">
+                                Not enough funds on the account.
+                            </div>
+
+                            <div id="error" style="text-align: left; display: none"></div>
+
+                            <div style="text-align: left"><span id="backup"></span><code id="secret"
+                                    style="font-weight: 600;"></code></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="wrapper" style="display: none;" id="error_container"></div>
+    </div>
+</body>
+
+</html>
