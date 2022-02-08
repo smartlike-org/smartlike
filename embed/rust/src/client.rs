@@ -82,6 +82,8 @@ impl Client {
             }
         });
 
+        println!("Sending {} to {}", serde_json::to_string(&body).map_err(|err| anyhow::anyhow!("Failed to serialize body: {}", err.to_string()))?, self.network_address);
+
         let resp = self
             .http_client
             .post(&self.network_address)

@@ -3,6 +3,7 @@
 members = [
   "gateway",
   "vote",
+  "fediverse-relay",
 ]
 
 exclude = [

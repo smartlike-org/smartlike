@@ -1,0 +1,12 @@
+{
+    "subject": "acct:peertube@{INSTANCE}",
+    "aliases": ["https://{INSTANCE}/accounts/peertube"],
+    "links": [{
+        "rel": "self",
+        "type": "application/activity+json",
+        "href": "https://{INSTANCE}/accounts/peertube"
+    }, {
+        "rel": "http://ostatus.org/schema/1.0/subscribe",
+        "template": "https://{INSTANCE}/remote-interaction?uri={uri}"
+    }]
+}
