@@ -6,7 +6,7 @@
 A Fediverse to Smartlike relay prototype.
 
 Fediverse users receive micro-donations sent via Smartlike by [connecting](https://smartlike.org/docs/how-to-set-up-content-monetization) their Fediverse profiles to Smartlike accounts. They can also opt to have their Fediverse keys trusted on Smartlike to make donations or create subscriptions without leaving their Fediverse sites.
-The relay subscribes to Fediverse instances and forwards signed thumb-up/comment transactions from connected users to Smartlike transparently turning them into micro-donations.
+The relay forwards signed thumb-up/comment/boost transactions from connected users to Smartlike transparently turning them into micro-donations.
 
 ## Contribute
 
@@ -15,6 +15,7 @@ Smartlike is an open source project. We welcome all sorts of participation. If y
 Currently supported Fediverse projects:
 
 -   PeerTube
+-   Mastodon
 
 ## License
 

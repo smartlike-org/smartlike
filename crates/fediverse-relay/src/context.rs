@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::{fs, io};
 use std::{fs::File, io::prelude::*};
+use tracing::{error, trace};
 
 #[derive(Deserialize, Serialize, Clone, Default, Debug)]
 pub struct Configuration {
@@ -23,6 +24,7 @@ pub struct Configuration {
     pub instance: String,
     pub max_actor_cache_size: usize,
     pub protocol: String,
+    pub log_target: String,
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug)]
@@ -41,6 +43,14 @@ pub struct Context {
     pub db: Arc<DBWithThreadMode<MultiThreaded>>,
     pub following: DashMap<String, Instance>,
     pub http_client: reqwest::Client,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub enum Platform {
+    Unknown,
+    General,
+    Mastodon,
+    PeerTube,
 }
 
 impl Context {
@@ -77,8 +87,7 @@ impl Context {
                             .to_string();
 
                             replies.insert(parts[parts.len() - 1].to_string(), j);
-                        }
-                        else {
+                        } else {
                             replies.insert(parts[parts.len() - 1].to_string(), response);
                         }
                     }
@@ -102,7 +111,7 @@ impl Context {
         let iter = db.iterator(IteratorMode::Start);
         let following = DashMap::new();
         for (key, value) in iter {
-            println!("Found server {:?} {:?}", key, value);
+            trace!("Found server {:?} {:?}", key, value);
             match (
                 String::from_utf8(key.to_vec()),
                 String::from_utf8(value.to_vec()),
@@ -112,11 +121,11 @@ impl Context {
                     following.insert(k, i);
                 }
                 _ => {
-                    println!("Failed to parse server. Rejecting.");
+                    error!("Failed to parse server. Rejecting.");
                     match db.delete(key) {
                         Ok(_) => {}
                         Err(e) => {
-                            println!("Failed to delete db record: {}", e);
+                            error!("Failed to delete db record: {}", e);
                         }
                     }
                 }
@@ -152,7 +161,7 @@ impl Context {
                     Ok(())
                 }
                 Err(e) => {
-                    println!("DB error: {}", e);
+                    error!("DB error: {}", e);
                     Err(anyhow::anyhow!(
                         "Error loading configuration: {}",
                         e.to_string()

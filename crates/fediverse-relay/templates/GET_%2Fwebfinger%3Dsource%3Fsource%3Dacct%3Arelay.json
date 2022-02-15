@@ -1,0 +1,13 @@
+{
+    "aliases": ["https://{INSTANCE}/actor"],
+    "links": [{
+        "href": "https://{INSTANCE}/actor",
+        "rel": "self",
+        "type": "application/activity+json"
+    }, {
+        "href": "https://{INSTANCE}/actor",
+        "rel": "self",
+        "type": "application/ld+json; profile='https://www.w3.org/ns/activitystreams'"
+    }],
+    "subject": "acct:relay@{INSTANCE}"
+}

@@ -53,7 +53,7 @@ impl Client {
         strs.join("")
     }
 
-    pub async fn rpc(&self, method: &str, parameters: &str, id: Option<u64>) -> anyhow::Result<()>
+    pub async fn rpc(&self, method: &str, parameters: &str, id: Option<u64>) -> anyhow::Result<String>
     {
         let now = SystemTime::now();
         let ts: i32 = now
@@ -82,8 +82,6 @@ impl Client {
             }
         });
 
-        println!("Sending {} to {}", serde_json::to_string(&body).map_err(|err| anyhow::anyhow!("Failed to serialize body: {}", err.to_string()))?, self.network_address);
-
         let resp = self
             .http_client
             .post(&self.network_address)
@@ -100,11 +98,7 @@ impl Client {
 
             let r: Response<String> = serde_json::from_str(&text)
                 .map_err(|err| anyhow::anyhow!("Parse error: {} {}", err.to_string(), text))?;
-            if r.status == "ok" {
-                Ok(())
-            } else {
-                Err(anyhow::anyhow!("Error: {}", r.status))
-            }
+            Ok(r.status)
         } else {
             Err(anyhow::anyhow!("HTTP response code: {}", resp.status()))
         }

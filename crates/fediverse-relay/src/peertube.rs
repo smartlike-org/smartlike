@@ -1,13 +1,14 @@
 use crate::util;
 use crate::{Context};
 use util::sign_and_send;
+use tracing::{trace};
 
 pub async fn follow(
     instance: &str,
     platform: &str,
     context: &Context,
 ) -> Result<(), anyhow::Error> {
-    println!("follow");
+    trace!("follow");
     let key_id = match platform {
         "peertube" => format!("https://{}/accounts/peertube", context.config.instance),
         _ => {

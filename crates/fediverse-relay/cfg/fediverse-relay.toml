@@ -3,6 +3,7 @@ num_web_server_threads = 1
 num_relay_threads = 1
 max_actor_cache_size = 10000
 protocol = "https"
+log_target = "smartlike_fediverse_relay=trace,actix_server::server=info"
 
 instance = "smartlike.example.com"
 name = "smartlike"
@@ -15,4 +16,3 @@ private_key = ""
 network_address = "https://smartlike.org/network"
 smartlike_account = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
 smartlike_key = "xxxx xxxxxxx xxxx xxxxxx xxxxx xxxxxx xxxxx xxxxxxx xxxxx xxxx xxxxx xxxx"
-

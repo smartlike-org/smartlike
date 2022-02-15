@@ -1,0 +1,11 @@
+{
+    "type": "Accept",
+    "id": "https://peertube.smartlike.org/accepts/follows/6/1",
+    "actor": "https://peertube.smartlike.org/accounts/peertube",
+    "object": {
+        "type": "Follow",
+        "id": "https://peertube1.smartlike.org/accounts/peertube/follows/6",
+        "actor": "https://peertube1.smartlike.org/accounts/peertube",
+        "object": "https://peertube.smartlike.org/accounts/peertube"
+    }
+}
