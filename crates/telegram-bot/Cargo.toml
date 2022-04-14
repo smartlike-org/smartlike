@@ -1,0 +1,55 @@
+[package]
+name = "smartlike-telegram-bot"
+version = "0.0.1"
+authors = ["developers@smartlike.org"]
+edition = "2021"
+
+[[bin]]
+name = "smartlike-telegram-bot"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1.0.47"
+serde = { version = "1.0", features = [ "derive" ] }
+serde_json = { version = "1.0.73", features = [ "preserve_order" ] }
+indexmap = "=1.6.2"
+clap = "~2.33"
+toml = "0.5.8"
+url = "2.1.0"
+rocksdb = "0.17.0"
+base64 = "0.13.0"
+openssl = "0.10.36"
+urlencoding = "2.1.0"
+tracing = "0.1"
+tracing-log = "0.1"
+tracing-error = "0.2"
+tracing-actix-web = { version = "0.5.0-beta.10" }
+tracing-subscriber = { version = "0.3", features = ["ansi", "env-filter", "fmt"] }
+console-subscriber = "0.1"
+hex = "0.4.3"
+http = "0.2.6"
+lru = "0.6.5"
+json = "0.12.4"
+dashmap = "4.0.0"
+fasthash = "0.4"
+regex = "1.5.4"
+lazy_static = "1.4.0"
+ssi = "0.3.0"
+json-ld = "0.4"
+futures = "0.3"
+iref = "^2.0.3"
+uuid = { version = "0.8", features = ["serde", "v4"] }
+async-channel = "1.6.1"
+awc = "2.0.3"
+sha2 = "=0.8.1"
+telegram-bot = { git = "https://github.com/telegram-rs/telegram-bot"}
+
+teloxide = { version = "0.7", features = ["macros", "auto-send"] }
+log = "0.4"
+pretty_env_logger = "0.4"
+tokio = { version =  "1.8", features = ["rt-multi-thread", "macros"] }
+smartlike-embed-lib = { path = "../../embed/rust" }
+
+[dependencies.chrono]
+features = ["serde"]
+version = "0.4"

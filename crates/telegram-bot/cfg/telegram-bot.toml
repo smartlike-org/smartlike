@@ -1,0 +1,7 @@
+telegram_bot_token = "xxxxxxxxxxxxxxxxxxx"
+network_address = "https://smartlike.org/network"
+smartlike_account = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+smartlike_key = "xxxx xxxxxxx xxxx xxxxxx xxxxx xxxxxx xxxxx xxxxxxx xxxxx xxxx xxxxx xxxx"
+num_relay_threads = 4
+media_group_id_cache_size = 1000000
+log_target = ""

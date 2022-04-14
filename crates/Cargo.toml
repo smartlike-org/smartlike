@@ -4,6 +4,7 @@ members = [
   "gateway",
   "vote",
   "fediverse-relay",
+  "telegram-bot",
 ]
 
 exclude = [
