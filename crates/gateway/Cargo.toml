@@ -12,9 +12,12 @@ serde_json = { version = "1.0.51", features = [ "preserve_order" ] }
 clap = "~2.33"
 toml = "0.5.8"
 url = "2.1.0"
-actix-web = "3.3.2"
-actix-rt = "1.1.1"
-actix-cors = "0.5.4"
-reqwest = { version = "0.10", features = ["blocking", "json"] }
+actix-rt = "2.6.0"
+actix-web = { version = "4.0.0-beta.19", default-features = false }
+actix-cors = "0.6.1"
+reqwest = { version = "0.11.10", features = ["blocking", "json", "rustls-tls"] }
+tokio-compat-02 = "0.2"
+
 rocksdb = "0.17.0"
+uuid = "1.0.0"
 smartlike-embed-lib = { path = "../../embed/rust" }
