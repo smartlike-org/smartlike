@@ -8,6 +8,8 @@ use sha2::Digest;
 use smartlike_embed_lib::client::Client;
 use std::{fs::File, io::prelude::*, thread, time::Duration};
 use telegram_bot::*;
+#[macro_use]
+extern crate log;
 
 #[derive(Deserialize, Serialize, Clone, Default, Debug)]
 pub struct Configuration {
@@ -67,7 +69,7 @@ async fn main() -> Result<(), Error> {
     // Load the queue from previous run.
     let iter = db.iterator(IteratorMode::Start);
     for (key, value) in iter {
-        println!("Found pending request {:?} {:?}", key, value);
+        info!("Found pending request {:?} {:?}", key, value);
         match (
             String::from_utf8(key.to_vec()),
             String::from_utf8(value.to_vec()),
@@ -76,16 +78,16 @@ async fn main() -> Result<(), Error> {
                 match tx.send((k, v)).await {
                     Ok(_) => {}
                     Err(e) => {
-                        println!("TX Error: {}", e);
+                        error!("TX Error: {}", e);
                     }
                 };
             }
             _ => {
-                println!("Failed to parse pending receipt. Rejecting.");
+                error!("Failed to parse pending receipt. Rejecting.");
                 match db.delete(key) {
                     Ok(_) => {}
                     Err(e) => {
-                        println!("Failed to delete db record: {}", e);
+                        error!("Failed to delete db record: {}", e);
                     }
                 }
             }
@@ -105,17 +107,17 @@ async fn main() -> Result<(), Error> {
                         Ok(_) => match db_out.delete(msg.0) {
                             Ok(_) => {}
                             Err(e) => {
-                                println!("Failed to delete db record: {}", e);
+                                error!("Failed to delete db record: {}", e);
                             }
                         },
                         Err(e) => {
-                            println!("Failed to process receipt: {}", e.to_string());
+                            error!("Failed to process receipt: {}", e.to_string());
                             // Communications issues? - Wait and retry.
                             thread::sleep(Duration::from_secs(5));
                             match tx_out.send(msg).await {
                                 Ok(_) => {}
                                 Err(e) => {
-                                    println!("TX Error: {}", e);
+                                    error!("TX Error: {}", e);
                                 }
                             };
                         }
@@ -135,16 +137,16 @@ async fn main() -> Result<(), Error> {
         // If the received update contains a new message...
         let update = update?;
         if let UpdateKind::Message(msg) = update.kind {
-            //println!("message: {:?}", &msg);
+            trace!("message: {:?}", &msg);
 
             if msg.from.is_bot {
-                println!("Bot ignored");
+                warn!("Bot ignored");
                 continue;
             }
 
             match &msg.kind {
                 telegram_bot::types::MessageKind::Text { data, .. } => {
-                    println!("Text: {}", data);
+                    trace!("Text: {}", data);
                     match data.find("/start ") {
                         Some(v) => {
                             if v == 0 {
@@ -244,7 +246,7 @@ async fn main() -> Result<(), Error> {
                 telegram_bot::types::MessageKind::Photo { media_group_id, .. } => {
                     if let Some(id) = media_group_id {
                         if media_group_ids.contains(id) {
-                            println!("Skipping media group {}", id);
+                            debug!("Skipping media group {}", id);
                             continue;
                         } else {
                             media_group_ids.put(id.to_string(), id.to_string());
@@ -254,7 +256,7 @@ async fn main() -> Result<(), Error> {
                 telegram_bot::types::MessageKind::Video { media_group_id, .. } => {
                     if let Some(id) = media_group_id {
                         if media_group_ids.contains(id) {
-                            println!("Skipping media group {}", id);
+                            debug!("Skipping media group {}", id);
                             continue;
                         } else {
                             media_group_ids.put(id.to_string(), id.to_string());
@@ -263,7 +265,7 @@ async fn main() -> Result<(), Error> {
                 }
 
                 _ => {
-                    println!("No message id.");
+                    trace!("No message id.");
                 }
             }
 
@@ -282,11 +284,11 @@ async fn main() -> Result<(), Error> {
                                 msg_id = message_id;
                             }
                             _ => {
-                                println!("No message username.");
+                                warn!("No message username.");
                             }
                         },
                         _ => {
-                            println!("No message id.");
+                            warn!("No message id.");
                         }
                     }
 
@@ -310,11 +312,11 @@ async fn main() -> Result<(), Error> {
                                         Ok(_) => match tx.send((key, message)).await {
                                             Ok(_) => {}
                                             Err(e) => {
-                                                println!("TX Error: {}", e);
+                                                error!("TX Error: {}", e);
                                             }
                                         },
                                         Err(e) => {
-                                            println!("DB error: {}", e);
+                                            error!("DB error: {}", e);
                                         }
                                     }
                                 }
@@ -322,7 +324,7 @@ async fn main() -> Result<(), Error> {
                             }
                         }
                         _ => {
-                            println!("No user id.");
+                            error!("No user id.");
                         }
                     }
                 }
