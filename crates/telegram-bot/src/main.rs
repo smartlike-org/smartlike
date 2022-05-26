@@ -5,7 +5,7 @@ extern crate serde;
 use futures::StreamExt;
 use lru::LruCache;
 use sha2::Digest;
-use smartlike_embed_lib::client::Client;
+use smartlike_embed_lib::client::{Client, Like};
 use std::{fs::File, io::prelude::*, thread, time::Duration};
 use telegram_bot::*;
 #[macro_use]
@@ -20,15 +20,6 @@ pub struct Configuration {
     pub smartlike_key: String,
     pub log_target: String,
     pub media_group_id_cache_size: usize,
-}
-
-#[derive(Deserialize, Serialize, Clone, Default, Debug)]
-pub struct Like {
-    pub platform: String,
-    pub id: String,
-    pub target: String,
-    pub amount: f64,
-    pub currency: String,
 }
 
 #[tokio::main]
@@ -64,66 +55,66 @@ async fn main() -> Result<(), Error> {
         config.network_address,
     );
 
-    let (tx, rx) = async_channel::unbounded::<(String, String)>();
+    let (tx, rx) = async_channel::unbounded::<(String, Like)>();
 
     // Load the queue from previous run.
     let iter = db.iterator(IteratorMode::Start);
     for (key, value) in iter {
         info!("Found pending request {:?} {:?}", key, value);
-        match (
+        if let (Ok(k), Ok(v)) = (
             String::from_utf8(key.to_vec()),
             String::from_utf8(value.to_vec()),
         ) {
-            (Ok(k), Ok(v)) => {
-                match tx.send((k, v)).await {
-                    Ok(_) => {}
+            if let Ok(like) = serde_json::from_str(&v) {
+                match tx.send((k, like)).await {
+                    Ok(_) => {
+                        continue;
+                    }
                     Err(e) => {
                         error!("TX Error: {}", e);
                     }
-                };
+                }
             }
-            _ => {
-                error!("Failed to parse pending receipt. Rejecting.");
-                match db.delete(key) {
-                    Ok(_) => {}
-                    Err(e) => {
-                        error!("Failed to delete db record: {}", e);
-                    }
+            error!("Failed to enqueue pending receipt. Rejecting.");
+            match db.delete(key) {
+                Ok(_) => {}
+                Err(e) => {
+                    error!("Failed to delete db record: {}", e);
                 }
             }
         }
     }
 
-    let db_out = db.clone();
-    let tx_out = tx.clone();
-    let client_clone = client.clone();
-
-    tokio::spawn(async move {
-        // todo: scale the number of threads
-        loop {
-            match rx.recv().await {
-                Ok(msg) => {
-                    match client.rpc("forward_like", &msg.1, None).await {
-                        Ok(_) => match db_out.delete(msg.0) {
-                            Ok(_) => {}
-                            Err(e) => {
-                                error!("Failed to delete db record: {}", e);
-                            }
-                        },
-                        Err(e) => {
-                            error!("Failed to process receipt: {}", e.to_string());
-                            // Communications issues? - Wait and retry.
-                            thread::sleep(Duration::from_secs(5));
-                            match tx_out.send(msg).await {
+    tokio::spawn({
+        let client = client.clone();
+        let db = db.clone();
+        let tx = tx.clone();
+        async move {
+            loop {
+                match rx.recv().await {
+                    Ok(msg) => {
+                        match client.forward_like(&msg.1).await {
+                            Ok(_) => match db.delete(msg.0) {
                                 Ok(_) => {}
                                 Err(e) => {
-                                    error!("TX Error: {}", e);
+                                    error!("Failed to delete db record: {}", e);
                                 }
-                            };
+                            },
+                            Err(e) => {
+                                error!("Failed to process receipt: {}", e.to_string());
+                                // Communications issues? - Wait and retry.
+                                thread::sleep(Duration::from_secs(5));
+                                match tx.send(msg).await {
+                                    Ok(_) => {}
+                                    Err(e) => {
+                                        error!("TX Error: {}", e);
+                                    }
+                                };
+                            }
                         }
                     }
+                    Err(_) => {}
                 }
-                Err(_) => {}
             }
         }
     });
@@ -171,7 +162,7 @@ async fn main() -> Result<(), Error> {
                                                     "telegram{}{}{}",
                                                     msg.from.id, account, float_donation
                                                 );
-                                                let sig = client_clone.sign(&to_sign);
+                                                let sig = client.sign(&to_sign);
                                                 let url = format!("https://smartlike.org/confirm?platform=telegram&id={}&name={}&account={}&amount={}&proxy={}&signature={}", msg.from.id, username, account, float_donation, config.smartlike_account, sig);
 
                                                 let mut keyboard =
@@ -309,7 +300,7 @@ async fn main() -> Result<(), Error> {
                                     let key = hex::encode(hasher.result().as_slice().to_vec());
 
                                     match db.put(key.clone(), message.clone()) {
-                                        Ok(_) => match tx.send((key, message)).await {
+                                        Ok(_) => match tx.send((key, like)).await {
                                             Ok(_) => {}
                                             Err(e) => {
                                                 error!("TX Error: {}", e);

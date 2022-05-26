@@ -1,4 +1,4 @@
-use crate::{relay, Context};
+use crate::{Context};
 use actix_web::HttpRequest;
 use chrono::Utc;
 use futures::FutureExt;
@@ -14,6 +14,8 @@ use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 use url::Url;
 use tracing::{trace, warn};
+use smartlike_embed_lib::client::{ApubMessage};
+
 
 pub fn _verify_signature() -> Result<(), anyhow::Error> {
     Ok(())
@@ -165,7 +167,7 @@ pub fn prepare_message(
     req: HttpRequest,
     path: &str,
     payload: String,
-) -> anyhow::Result<relay::Message> {
+) -> anyhow::Result<ApubMessage> {
     let h = req.head().headers();
     match (
         h.get("digest").and_then(|v| v.to_str().ok()),
@@ -174,7 +176,7 @@ pub fn prepare_message(
         (Some(digest), Some(signature)) => {
             // todo: check time drift
 
-            let mut msg = relay::Message {
+            let mut msg = ApubMessage {
                 key_id: "".to_string(),
                 headers: format!("(request-target): {} {}", req.method().as_str().to_lowercase(), path),
                 algorithm: "".to_string(),

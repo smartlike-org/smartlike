@@ -12,10 +12,10 @@ use actix_cors::Cors;
 use actix_web::{web, App, HttpResponse, HttpServer};
 use rocksdb::{DBWithThreadMode, IteratorMode, MultiThreaded};
 use serde_json::json;
-use smartlike_embed_lib::client::Client;
+use smartlike_embed_lib::client::{Client, DonationReceipt};
 use std::collections::HashMap;
 use std::sync::mpsc::{channel, Sender};
-use std::{fs::File, io::prelude::*, thread, time::Duration};
+use std::{fs::File, io::prelude::*, time::Duration};
 
 #[derive(Deserialize, Serialize, Clone, Default, Debug)]
 pub struct Configuration {
@@ -24,21 +24,6 @@ pub struct Configuration {
     pub network_address: String,
     pub smartlike_account: String,
     pub smartlike_key: String,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct DonationReceipt {
-    pub donor: String,
-    pub recipient: String,
-    pub channel_id: String,
-    pub alias: String,
-    pub id: String,
-    pub address: String,
-    pub processor: String,
-    pub amount: f64,
-    pub currency: String,
-    pub target_currency: String,
-    pub ts: u32,
 }
 
 async fn paypal_handler(
@@ -137,47 +122,45 @@ async fn main() -> anyhow::Result<()> {
     );
     let shared_node = web::Data::new(client.clone());
 
-    let (tx, rx) = channel::<(String, String)>();
+    let (tx, rx) = channel::<(String, DonationReceipt)>();
 
     // Load pending receipts from previous runs and retry them.
     let iter = db.iterator(IteratorMode::Start);
     for (key, value) in iter {
         println!("Found pending request {:?} {:?}", key, value);
-        match (
+        if let (Ok(k), Ok(v)) = (
             String::from_utf8(key.to_vec()),
             String::from_utf8(value.to_vec()),
         ) {
-            (Ok(k), Ok(v)) => {
-                match tx.send((k, v)) {
-                    Ok(_) => {}
-                    Err(e) => {
-                        println!("TX Error: {}", e);
+            if let Ok(receipt) = serde_json::from_str(&v) {
+                match tx.send((k, receipt)) {
+                    Ok(_) => {
+                        continue;
                     }
-                };
-            }
-            _ => {
-                println!("Failed to parse pending receipt. Rejecting.");
-                match db.delete(key) {
-                    Ok(_) => {}
                     Err(e) => {
-                        println!("Failed to delete db record: {}", e);
+                        println!("Failed to deserialize receipt: {}", e);
                     }
                 }
             }
         }
+        println!("Failed to enqueue pending receipt. Rejecting.");
+        match db.delete(key) {
+            Ok(_) => {}
+            Err(e) => {
+                println!("Failed to delete db record: {}", e);
+            }
+        }
     }
 
-    let db_out = db.clone();
-    let tx_out = tx.clone();
-    actix_rt::spawn(async move {
-        // todo: scale the number of threads
-        let timeout = Duration::from_secs(10);
-
-        loop {
-            match rx.recv_timeout(timeout) {
-                Ok(msg) => {
-                    match client.rpc("confirm_donation", &msg.1, None).await {
-                        Ok(_) => match db_out.delete(msg.0) {
+    actix_rt::spawn({
+        let db = db.clone();
+        let tx = tx.clone();
+        async move {
+            let timeout = Duration::from_secs(10);
+            loop {
+                if let Ok(msg) = rx.recv_timeout(timeout) {
+                    match client.confirm_donation(&msg.1).await {
+                        Ok(_) => match db.delete(msg.0) {
                             Ok(_) => {}
                             Err(e) => {
                                 println!("Failed to delete db record: {}", e);
@@ -186,8 +169,8 @@ async fn main() -> anyhow::Result<()> {
                         Err(e) => {
                             println!("Failed to process receipt: {}", e.to_string());
                             // Communications issues? - Wait and retry.
-                            thread::sleep(Duration::from_secs(5));
-                            match tx_out.send(msg) {
+                            actix_rt::time::sleep(Duration::from_secs(5)).await;
+                            match tx.send(msg) {
                                 Ok(_) => {}
                                 Err(e) => {
                                     println!("TX Error: {}", e);
@@ -196,7 +179,6 @@ async fn main() -> anyhow::Result<()> {
                         }
                     }
                 }
-                Err(_) => {}
             }
         }
     });

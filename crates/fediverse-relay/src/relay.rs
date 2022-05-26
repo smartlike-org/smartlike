@@ -10,7 +10,7 @@ use reqwest::header;
 use rocksdb::{DBWithThreadMode, IteratorMode, MultiThreaded};
 use serde::Serialize;
 use serde_json::json;
-use smartlike_embed_lib::client::Client;
+use smartlike_embed_lib::client::{ApubMessage, Client};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tracing::{error, info, trace, warn};
@@ -33,17 +33,6 @@ pub struct Signature {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct Message {
-    pub key_id: String,
-    pub headers: String,
-    pub algorithm: String,
-    pub digest: String,
-    pub signature: String,
-    pub payload: String,
-    pub ts: u32,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Reply {
     pub instance: String,
     pub path: String,
@@ -52,26 +41,27 @@ pub struct Reply {
     pub sign_body: bool,
 }
 
-impl Message {
-    pub fn verify_https_signature(&self, public_key: &PKey<Public>) -> Result<bool, anyhow::Error> {
-        let digest = openssl::hash::hash(
-            openssl::hash::MessageDigest::sha256(),
-            self.payload.as_bytes(),
-        )?;
-        let mut digest_header = "SHA-256=".to_owned();
-        base64::encode_config_buf(digest, base64::STANDARD, &mut digest_header);
-        if self.digest != digest_header {
-            warn!("{}\n{}", self.digest, digest_header);
-            return Ok(false);
-        }
-        let sig = base64::decode(self.signature.clone())?;
-        Ok(util::verify(
-            public_key,
-            MessageDigest::sha256(),
-            self.headers.as_bytes(),
-            &sig,
-        )?)
+fn verify_https_signature(
+    msg: &ApubMessage,
+    public_key: &PKey<Public>,
+) -> Result<bool, anyhow::Error> {
+    let digest = openssl::hash::hash(
+        openssl::hash::MessageDigest::sha256(),
+        msg.payload.as_bytes(),
+    )?;
+    let mut digest_header = "SHA-256=".to_owned();
+    base64::encode_config_buf(digest, base64::STANDARD, &mut digest_header);
+    if msg.digest != digest_header {
+        warn!("{}\n{}", msg.digest, digest_header);
+        return Ok(false);
     }
+    let sig = base64::decode(msg.signature.clone())?;
+    Ok(util::verify(
+        public_key,
+        MessageDigest::sha256(),
+        msg.headers.as_bytes(),
+        &sig,
+    )?)
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -99,13 +89,13 @@ impl Actor {
 
 #[derive(Clone)]
 pub struct Dispatcher {
-    pub relay_channels: Vec<Sender<Message>>,
+    pub relay_channels: Vec<Sender<ApubMessage>>,
     pub db: Arc<DBWithThreadMode<MultiThreaded>>,
     pub respond_tx: async_channel::Sender<Reply>,
 }
 
 impl Dispatcher {
-    pub async fn send(&self, message: Message) -> Result<(), anyhow::Error> {
+    pub async fn send(&self, message: ApubMessage) -> Result<(), anyhow::Error> {
         // The same ids are dispatched to the same relay channels to utilize their caches.
         let ch = (hash64(&message.key_id) % self.relay_channels.len() as u64) as usize;
 
@@ -143,7 +133,7 @@ impl Dispatcher {
             trace!("Found pending request {:?}", key);
             match String::from_utf8(value.to_vec()) {
                 Ok(v) => {
-                    let message_res: Result<Message, _> = serde_json::from_str(&v);
+                    let message_res: Result<ApubMessage, _> = serde_json::from_str(&v);
                     if let Ok(message) = message_res {
                         match self.send(message).await {
                             Ok(_) => {}
@@ -332,9 +322,9 @@ impl Relay {
         }
     }
 
-    pub async fn verify_message(
+    async fn verify_message(
         &mut self,
-        msg: &Message,
+        msg: &ApubMessage,
         body_value: &mut serde_json::Value,
         account_required: bool,
         verify_rsa_signature_2017: bool,
@@ -343,7 +333,7 @@ impl Relay {
         if let Some(actor_data) = self.get_actor(&msg.key_id, false).await {
             trace!("http signer found");
             if let Some(pk) = actor_data.public_key {
-                match msg.verify_https_signature(&pk) {
+                match verify_https_signature(&msg, &pk) {
                     Ok(res) => {
                         if res {
                             info!("HTTP signature verified.");
@@ -442,14 +432,14 @@ impl Relay {
 pub async fn run_thread(
     _channel: usize,
     mut relay: Relay,
-    rx: Receiver<Message>,
+    rx: Receiver<ApubMessage>,
     db: Arc<DBWithThreadMode<MultiThreaded>>,
 ) {
     loop {
         match rx.recv().await {
             Ok(msg) => {
                 let payload: Result<serde_json::Value, _> = serde_json::from_str(&msg.payload);
-                if let (Ok(mut j), Ok(message)) = (payload, serde_json::to_string(&msg)) {
+                if let Ok(mut j) = payload {
                     let t = j
                         .get("type")
                         .and_then(|v| v.as_str())
@@ -460,11 +450,7 @@ pub async fn run_thread(
                         "Like" | "Announce" => {
                             match relay.verify_message(&msg, &mut j, true, t == "Like").await {
                                 Ok(()) => loop {
-                                    match relay
-                                        .smartlike_client
-                                        .rpc("relay_apub", &message, None)
-                                        .await
-                                    {
+                                    match relay.smartlike_client.relay_apub(&msg).await {
                                         Ok(res) => {
                                             if res != "ok" {
                                                 warn!("Smartlike returned: {}", res);

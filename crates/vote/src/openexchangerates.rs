@@ -1,6 +1,7 @@
-use crate::{Configuration, CurrencyExchangeRatesUpdate};
+use crate::{Configuration};
 use std::collections::HashMap;
 use std::string::ToString;
+use smartlike_embed_lib::client::CurrencyExchangeRatesUpdate;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Rates {

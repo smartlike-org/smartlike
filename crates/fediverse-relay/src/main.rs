@@ -22,7 +22,7 @@ use async_channel::unbounded;
 use console_subscriber::ConsoleLayer;
 use context::Context;
 use rocksdb::{DBWithThreadMode, MultiThreaded};
-use smartlike_embed_lib::client::Client;
+use smartlike_embed_lib::client::{Client, ApubMessage};
 use std::sync::Arc;
 use tracing::info;
 use tracing_actix_web::TracingLogger;
@@ -76,7 +76,7 @@ async fn main() -> Result<(), anyhow::Error> {
     // Threads to relay transactions
     let mut relay_threads = vec![];
     for i in 0..context.config.num_relay_threads {
-        let (tx, rx) = unbounded::<relay::Message>();
+        let (tx, rx) = unbounded::<ApubMessage>();
         dispatcher.relay_channels.push(tx);
         let relay = relay::Relay::create(context.clone(), smartlike_client.clone())?;
         relay_threads.push(arbiter.spawn(relay::run_thread(i, relay, rx, db.clone())));

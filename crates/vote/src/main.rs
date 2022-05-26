@@ -6,7 +6,6 @@ extern crate serde;
 
 use smartlike_embed_lib::client::Client;
 use std::{fs::File, io::prelude::*};
-use std::collections::HashMap;
 
 mod openexchangerates;
 
@@ -19,20 +18,11 @@ pub struct Configuration {
     pub currency_exchange_query: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct CurrencyExchangeRatesUpdate {
-    pub source: String,
-    pub base: String,
-    pub ts: u32,
-    pub rates: HashMap<String, f64>,
-}
 
 async fn fetch_exchange_rates(client: &Client, config: &Configuration) -> anyhow::Result<()> {
     if config.currency_exchange_source == "openexchangerates.org" {
         let rates = openexchangerates::download(&config).await?;
-        let params = serde_json::to_string(&rates)
-            .map_err(|err| anyhow::anyhow!("Parse error: {}", err.to_string()))?;
-        client.rpc("update_exchange_rates", &params, None).await?;
+        client.update_exchange_rates(&rates).await?;
     } else {
     }
     Ok(())
