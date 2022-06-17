@@ -13,13 +13,13 @@ extern crate log;
 
 #[derive(Deserialize, Serialize, Clone, Default, Debug)]
 pub struct Configuration {
-    pub telegram_bot_token: String,
-    pub num_relay_threads: usize,
-    pub network_address: String,
-    pub smartlike_account: String,
-    pub smartlike_key: String,
-    pub log_target: String,
-    pub media_group_id_cache_size: usize,
+    telegram_bot_token: String,
+    num_relay_threads: usize,
+    network_address: String,
+    smartlike_account: String,
+    smartlike_key: String,
+    log_target: String,
+    media_group_id_cache_size: usize,
 }
 
 #[tokio::main]
@@ -41,10 +41,7 @@ async fn main() -> Result<(), Error> {
     let mut f = File::open(config).unwrap();
     let mut contents = String::new();
     f.read_to_string(&mut contents).unwrap();
-
-    let config = toml::from_str::<Configuration>(&contents)
-        .map_err(|e| format!("Error loading configuration: {}", e.to_string()))
-        .unwrap();
+    let config = toml::from_str::<Configuration>(&contents).unwrap();
 
     let db =
         std::sync::Arc::new(DBWithThreadMode::<MultiThreaded>::open_default("./queue").unwrap());
@@ -94,22 +91,14 @@ async fn main() -> Result<(), Error> {
                 match rx.recv().await {
                     Ok(msg) => {
                         match client.forward_like(&msg.1).await {
-                            Ok(_) => match db.delete(msg.0) {
-                                Ok(_) => {}
-                                Err(e) => {
-                                    error!("Failed to delete db record: {}", e);
-                                }
-                            },
+                            Ok(_) => db.delete(msg.0).unwrap_or_else(|e| {
+                                panic!("Failed to delete db record: {}", e)
+                            }),
                             Err(e) => {
-                                error!("Failed to process receipt: {}", e.to_string());
                                 // Communications issues? - Wait and retry.
+                                error!("Failed to forward like: {}", e);
                                 thread::sleep(Duration::from_secs(5));
-                                match tx.send(msg).await {
-                                    Ok(_) => {}
-                                    Err(e) => {
-                                        error!("TX Error: {}", e);
-                                    }
-                                };
+                                tx.send(msg).await.unwrap_or_else(|e| panic!("TX Error: {}", e));
                             }
                         }
                     }
