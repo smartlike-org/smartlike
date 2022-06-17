@@ -1,5 +1,6 @@
-use crate::{Context};
+use crate::Context;
 use actix_web::HttpRequest;
+use anyhow::anyhow;
 use chrono::Utc;
 use futures::FutureExt;
 use openssl::{
@@ -10,12 +11,11 @@ use openssl::{
 };
 use reqwest::header;
 use serde_json::json;
+use smartlike_embed_lib::client::ApubMessage;
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
-use url::Url;
 use tracing::{trace, warn};
-use smartlike_embed_lib::client::{ApubMessage};
-
+use url::Url;
 
 pub fn _verify_signature() -> Result<(), anyhow::Error> {
     Ok(())
@@ -57,7 +57,7 @@ pub async fn sign_and_send(
 
             let signature = base64::encode(
                 &sign(&context.private_key, to_be_signed.as_bytes())
-                    .map_err(|_err| anyhow::anyhow!("Failed to encode signature"))?,
+                    .map_err(|_err| anyhow!("Failed to encode signature"))?,
             );
 
             let sig = json!({
@@ -94,7 +94,7 @@ pub async fn sign_and_send(
     ).to_string();
 
     trace!("Signature: {}", sig_header);
-    
+
     let resp = context
         .http_client
         .post(&address)
@@ -108,12 +108,12 @@ pub async fn sign_and_send(
         .body(body)
         .send()
         .await
-        .map_err(|err| anyhow::anyhow!("Send error: {}", err.to_string()))?;
+        .map_err(|err| anyhow!("Send error: {}", err.to_string()))?;
 
     if resp.status() == 200 {
         Ok(())
     } else {
-        Err(anyhow::anyhow!("HTTP response code: {}", resp.status()))
+        Err(anyhow!("HTTP response code: {}", resp.status()))
     }
 }
 
@@ -143,16 +143,15 @@ pub fn get_ts() -> anyhow::Result<u32> {
     let now = SystemTime::now();
     let ts: u32 = now
         .duration_since(UNIX_EPOCH)
-        .map_err(|e| anyhow::anyhow!("{}", e.to_string()))?
+        .map_err(|e| anyhow!("{}", e.to_string()))?
         .as_secs() as u32;
     Ok(ts)
 }
 
 fn parse_field<'a>(field: &'a str) -> anyhow::Result<(&'a str, &'a str)> {
-    let idx = field.find('=').ok_or(anyhow::anyhow!(
-        "failed to parse signature field '{}'",
-        field
-    ))?;
+    let idx = field
+        .find('=')
+        .ok_or(anyhow!("failed to parse signature field '{}'", field))?;
     let key = &field[..idx];
     let value = &field[(idx + 1)..];
 
@@ -178,14 +177,18 @@ pub fn prepare_message(
 
             let mut msg = ApubMessage {
                 key_id: "".to_string(),
-                headers: format!("(request-target): {} {}", req.method().as_str().to_lowercase(), path),
+                headers: format!(
+                    "(request-target): {} {}",
+                    req.method().as_str().to_lowercase(),
+                    path
+                ),
                 algorithm: "".to_string(),
                 digest: digest.to_string(),
                 signature: signature.to_string(),
                 payload,
                 ts: get_ts()?,
             };
-            
+
             for par in signature.split(',') {
                 let (name, value) = parse_field(par)?;
                 match name {
@@ -199,7 +202,9 @@ pub fn prepare_message(
                                     Some(v) => {
                                         msg.headers.push_str(&format!("\n{}: {}", e, v));
                                     }
-                                    None => { return Err(anyhow::anyhow!("failed to find header: {}", e)); }
+                                    None => {
+                                        return Err(anyhow!("failed to find header: {}", e));
+                                    }
                                 }
                             }
                         }
@@ -209,7 +214,7 @@ pub fn prepare_message(
             }
             Ok(msg)
         }
-        (_, _) => Err(anyhow::anyhow!("missing header")),
+        _ => Err(anyhow!("missing header")),
     }
 }
 
@@ -268,7 +273,7 @@ pub async fn normalize_hash(j: &str) -> anyhow::Result<String> {
 
 pub fn get_domain(url: &str) -> anyhow::Result<String> {
     let parsed = Url::parse(url)?;
-    let host = parsed.host_str().ok_or(anyhow::anyhow!("Failed to get domain"))?;
+    let host = parsed.host_str().ok_or(anyhow!("Failed to get domain"))?;
     let mut publisher = host.to_string();
     if publisher.starts_with("www.") {
         publisher = publisher[4..publisher.len()].to_string();

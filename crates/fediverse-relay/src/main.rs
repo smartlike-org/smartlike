@@ -22,7 +22,7 @@ use async_channel::unbounded;
 use console_subscriber::ConsoleLayer;
 use context::Context;
 use rocksdb::{DBWithThreadMode, MultiThreaded};
-use smartlike_embed_lib::client::{Client, ApubMessage};
+use smartlike_embed_lib::client::{ApubMessage, Client};
 use std::sync::Arc;
 use tracing::info;
 use tracing_actix_web::TracingLogger;

@@ -1,5 +1,6 @@
 use crate::{util, Context};
 use actix_web::web;
+use anyhow::anyhow;
 use async_channel::{Receiver, Sender};
 use fasthash::city::hash64;
 use lru::LruCache;
@@ -338,11 +339,11 @@ impl Relay {
                         if res {
                             info!("HTTP signature verified.");
                         } else {
-                            return Err(anyhow::anyhow!("Failed to validate http signature"));
+                            return Err(anyhow!("Failed to validate http signature"));
                         }
                     }
                     Err(e) => {
-                        return Err(anyhow::anyhow!(
+                        return Err(anyhow!(
                             "Failed to validate http signature: {}",
                             e.to_string()
                         ));
@@ -350,7 +351,7 @@ impl Relay {
                 }
             }
         } else {
-            return Err(anyhow::anyhow!("failed to get author: {}", msg.key_id));
+            return Err(anyhow!("failed to get author: {}", msg.key_id));
         }
 
         if !verify_rsa_signature_2017 {
@@ -358,23 +359,23 @@ impl Relay {
         } else {
             let body_object = body_value
                 .as_object_mut()
-                .ok_or(anyhow::anyhow!("failed to parse RSA signature object"))?;
+                .ok_or(anyhow!("failed to parse RSA signature object"))?;
             let mut signature_value = body_object
                 .get("signature")
-                .ok_or(anyhow::anyhow!("failed to parse RSA signature"))?
+                .ok_or(anyhow!("failed to parse RSA signature"))?
                 .clone();
             let signature = signature_value
                 .as_object_mut()
-                .ok_or(anyhow::anyhow!("failed to parse RSA signature object"))?;
+                .ok_or(anyhow!("failed to parse RSA signature object"))?;
             body_object.remove("signature");
             let body_without_signature = serde_json::to_string(&body_object)?;
             let document_hash = util::normalize_hash(&body_without_signature).await?;
 
             let creator = signature
                 .get("creator")
-                .ok_or(anyhow::anyhow!("failed to parse creator"))?
+                .ok_or(anyhow!("failed to parse creator"))?
                 .as_str()
-                .ok_or(anyhow::anyhow!("failed to parse creator"))?
+                .ok_or(anyhow!("failed to parse creator"))?
                 .to_string();
 
             if let Some(actor_data) = self.get_actor(&creator, account_required).await {
@@ -382,9 +383,9 @@ impl Relay {
                 if let Some(pk) = actor_data.public_key {
                     let signature_value = signature
                         .get("signatureValue")
-                        .ok_or(anyhow::anyhow!("failed to parse RSA signature"))?
+                        .ok_or(anyhow!("failed to parse RSA signature"))?
                         .as_str()
-                        .ok_or(anyhow::anyhow!("failed to parse RSA signature"))?;
+                        .ok_or(anyhow!("failed to parse RSA signature"))?;
 
                     let decoded_sig = base64::decode(signature_value)?;
 
@@ -424,7 +425,7 @@ impl Relay {
                     }
                 }
             }
-            Err(anyhow::anyhow!("Failed to verify RSA signatures"))
+            Err(anyhow!("Failed to verify RSA signatures"))
         }
     }
 }

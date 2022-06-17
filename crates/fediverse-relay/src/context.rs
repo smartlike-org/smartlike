@@ -1,3 +1,4 @@
+use anyhow::anyhow;
 use dashmap::DashMap;
 use openssl::pkey::{PKey, Private, Public};
 use reqwest::header;
@@ -7,7 +8,6 @@ use std::sync::Arc;
 use std::{fs, io};
 use std::{fs::File, io::prelude::*};
 use tracing::{error, trace};
-
 #[derive(Deserialize, Serialize, Clone, Default, Debug)]
 pub struct Configuration {
     pub listen_address: String,
@@ -59,7 +59,7 @@ impl Context {
         let mut contents = String::new();
         f.read_to_string(&mut contents).unwrap();
         let config = toml::from_str::<Configuration>(&contents)
-            .map_err(|e| anyhow::anyhow!("Error loading configuration: {}", e.to_string()))?;
+            .map_err(|e| anyhow!("Error loading configuration: {}", e.to_string()))?;
         let mut replies: HashMap<String, String> = HashMap::new();
         let templates = fs::read_dir("./templates")?
             .map(|res| res.map(|e| e.path()))
@@ -67,12 +67,12 @@ impl Context {
         for t in templates {
             match t.into_os_string().into_string() {
                 Ok(v) => {
-                    let response = fs::read_to_string(v.clone())?;
+                    let response = fs::read_to_string(&v)?;
                     let parts: Vec<&str> = v.split('/').collect();
                     if parts.len() > 1 {
                         if v.ends_with(".json") {
                             let parsed = json::parse(&response).map_err(|e| {
-                                anyhow::anyhow!(
+                                anyhow!(
                                     "Failed to parse template {}. {}",
                                     parts[parts.len() - 1],
                                     e.to_string()
@@ -93,7 +93,7 @@ impl Context {
                     }
                 }
                 Err(_) => {
-                    return Err(anyhow::anyhow!("Failed to read templates."));
+                    return Err(anyhow!("Failed to read templates."));
                 }
             }
         }
@@ -155,17 +155,14 @@ impl Context {
         } else {
             let new = Instance { id: id.to_string() };
             let msg = serde_json::to_string(&new)?;
-            match self.db.put(instance.to_string(), msg.clone()) {
+            match self.db.put(instance, msg) {
                 Ok(_) => {
                     self.following.insert(instance.to_string(), new);
                     Ok(())
                 }
                 Err(e) => {
                     error!("DB error: {}", e);
-                    Err(anyhow::anyhow!(
-                        "Error loading configuration: {}",
-                        e.to_string()
-                    ))
+                    Err(anyhow!("Error loading configuration: {}", e.to_string()))
                 }
             }
         }

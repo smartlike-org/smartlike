@@ -165,7 +165,9 @@ pub async fn inbox(
                             error!("Unsopported type: {}", t);
                         }
                     },
-                    (_, _, _, _, _) => {}
+                    _ => {
+                        error!("Failed to parse header: {}", payload)
+                    }
                 }
             }
         }
@@ -215,9 +217,11 @@ pub async fn post_accounts_endpoint(
                                         match a.as_str() {
                                             Some(actor) => {
                                                 trace!("actor: {}", actor);
-                                                let path =
-                                                    format!("/accounts/{}/{}", account_id, end_point)
-                                                        .to_string();
+                                                let path = format!(
+                                                    "/accounts/{}/{}",
+                                                    account_id, end_point
+                                                )
+                                                .to_string();
                                                 match util::prepare_message(req, &path, payload) {
                                                     Ok(msg) => {
                                                         match dispatcher.send(msg).await {
@@ -236,8 +240,8 @@ pub async fn post_accounts_endpoint(
                                         }
                                     }
                                 }
-                                (_, _, _, _, _, _) => {
-                                    warn!("Message ignored");
+                                _ => {
+                                    warn!("Message ignored: {}", payload);
                                 }
                             }
 
@@ -257,7 +261,9 @@ pub async fn post_accounts_endpoint(
                 }
             }
         }
-        (_, _) => {}
+        _ => {
+            error!("Failed to parse accounts endpoint.")
+        }
     }
     HttpResponse::BadRequest().body("")
 }
@@ -287,7 +293,9 @@ pub async fn post_api_follow(
                     .body("");
             }
         }
-        (_, _) => {}
+        _ => {
+            error!("Failed to find platform or instance.")
+        }
     }
 
     HttpResponse::BadRequest().body("")
@@ -300,23 +308,23 @@ pub async fn post_api_test_relay(
 ) -> HttpResponse {
     match (String::from_utf8(bytes.to_vec()), query.get("instance")) {
         (Ok(payload), Some(instance)) => {
-
             let j_res: Result<serde_json::Value, _> = serde_json::from_str(&payload);
             if let Ok(mut j) = j_res {
                 let key_id = format!("https://{}/accounts/peertube", context.config.instance);
-                match util::sign_and_send(&instance, "/inbox", &context, &mut j, &key_id, false).await {
+                match util::sign_and_send(&instance, "/inbox", &context, &mut j, &key_id, false)
+                    .await
+                {
                     Ok(_v) => HttpResponse::Ok().body("ok"),
                     Err(e) => {
                         error!("Error: {}", e);
                         HttpResponse::BadRequest().body("")
                     }
                 }
-            }
-            else {
+            } else {
                 HttpResponse::BadRequest().body("")
             }
         }
-        (_, _) => {
+        _ => {
             error!("Failed to parse request");
             HttpResponse::BadRequest().body("")
         }
