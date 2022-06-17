@@ -2,45 +2,46 @@ use crate::{Configuration};
 use std::collections::HashMap;
 use std::string::ToString;
 use smartlike_embed_lib::client::CurrencyExchangeRatesUpdate;
+use anyhow::anyhow;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Rates {
-    pub disclaimer: String,
-    pub license: String,
-    pub timestamp: u32,
-    pub base: String,
-    pub rates: HashMap<String, f64>,
+    disclaimer: String,
+    license: String,
+    timestamp: u32,
+    base: String,
+    rates: HashMap<String, f64>,
 }
 pub async fn download(config: &Configuration) -> anyhow::Result<CurrencyExchangeRatesUpdate> {
-    println!("Querying {}", config.currency_exchange_query);
+    trace!("Querying {}", config.currency_exchange_query);
 
     let client = reqwest::Client::new();
     let resp = client
         .get(&config.currency_exchange_query)
         .send()
         .await
-        .map_err(|err| anyhow::anyhow!("HTTP GET error: {}", err.to_string()))?
+        .map_err(|err| anyhow!("HTTP GET error: {}", err))?
         .text()
         .await
-        .map_err(|err| anyhow::anyhow!("Send error: {}", err.to_string()))?;
+        .map_err(|err| anyhow!("Failed to get request body: {}", err))?;
 
-    parse(config.currency_exchange_source.clone(), &resp)
+    parse(&config.currency_exchange_source, &resp)
 }
 
-fn parse(source: String, resp: &str) -> anyhow::Result<CurrencyExchangeRatesUpdate> {
+fn parse(source: &str, resp: &str) -> anyhow::Result<CurrencyExchangeRatesUpdate> {
     let res: Result<Rates, String> = serde_json::from_str(&resp)
-        .map_err(|err| anyhow::anyhow!("Parse error: {} {}", err.to_string(), resp).to_string());
+        .map_err(|err| anyhow!("Parse error: {} {}", err, resp).to_string());
     match res {
         Ok(r) => {
             return Ok(CurrencyExchangeRatesUpdate {
-                source: source,
+                source: source.to_string(),
                 base: r.base,
                 ts: r.timestamp,
                 rates: r.rates,
             });
         }
         Err(e) => {
-            return Err(anyhow::anyhow!("{}", e.to_string()));
+            return Err(anyhow!("{}", e));
         }
     }
 }
@@ -53,7 +54,7 @@ mod tests {
     fn test_openexchange_parsing() {
         let resp = std::fs::read_to_string("./test/openexchangerates.json").unwrap();
         assert_eq!(
-            parse("openexchangerates.org".to_string(), &resp).is_ok(),
+            parse("openexchangerates.org", &resp).is_ok(),
             true
         );
     }
