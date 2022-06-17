@@ -5,25 +5,31 @@ extern crate url;
 #[macro_use]
 extern crate serde;
 extern crate rocksdb;
+#[macro_use]
+extern crate log;
 
 mod paypal;
 
 use actix_cors::Cors;
 use actix_web::{web, App, HttpResponse, HttpServer};
+use async_channel::Sender;
 use rocksdb::{DBWithThreadMode, IteratorMode, MultiThreaded};
 use serde_json::json;
 use smartlike_embed_lib::client::{Client, DonationReceipt};
 use std::collections::HashMap;
-use std::sync::mpsc::{channel, Sender};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::{fs::File, io::prelude::*, time::Duration};
 
-#[derive(Deserialize, Serialize, Clone, Default, Debug)]
+const WAIT_SECONDS_BEFORE_RESEND: u64 = 5;
+
+#[derive(Deserialize, Serialize, Default, Debug)]
 pub struct Configuration {
-    pub listen_address: String,
-    pub num_threads: usize,
-    pub network_address: String,
-    pub smartlike_account: String,
-    pub smartlike_key: String,
+    listen_address: String,
+    num_threads: usize,
+    network_address: String,
+    smartlike_account: String,
+    smartlike_key: String,
 }
 
 async fn paypal_handler(
@@ -33,39 +39,31 @@ async fn paypal_handler(
 ) -> actix_web::Result<HttpResponse> {
     match web::Query::from_query(&text) {
         Ok(q) => {
-            match paypal::parse(text, q).await {
+            match paypal::parse(&text, q).await {
                 Ok(receipt) => {
-                    // Store the call until it's successfully processed.
-                    let msg = serde_json::to_string(&receipt)?;
-                    match db.put(receipt.id.clone(), msg.clone()) {
+                    // Store the receipt until it's successfully processed.
+                    let msg = serde_json::to_string(&receipt).unwrap();
+                    match db.put(receipt.id.as_str(), msg.as_str()) {
                         Ok(_) => {
-                            // Do the forward in another thread to return IPN faster.
-                            match tx.send((receipt.id, msg)) {
-                                Ok(_) => {}
-                                Err(e) => {
-                                    println!("TX Error: {}", e);
-                                }
-                            };
+                            // Perform async forwarding to return IPN faster.
+                            tx.send((receipt.id, msg))
+                                .await
+                                .unwrap_or_else(|e| panic!("TX error: {}", e));
                             Ok(HttpResponse::Ok()
                                 .content_type("text/plain")
                                 .body("".to_string()))
                         }
-                        Err(e) => {
-                            println!("DB error: {}", e);
-                            Ok(HttpResponse::InternalServerError()
-                                .content_type("text/plain")
-                                .body("".to_string()))
-                        }
+                        Err(e) => panic!("DB error: {}", e),
                     }
                 }
                 Err(e) => {
-                    println!("Error: {}", e);
+                    error!("Failed to parse IPN: {} {}", text, e);
                     Ok(HttpResponse::Ok().content_type("text/plain").body("Error"))
                 }
             }
         }
         Err(e) => {
-            println!("Error: {}", e);
+            error!("Failed to parse query string: {}", e);
             Ok(HttpResponse::Ok().content_type("text/plain").body("Error"))
         }
     }
@@ -78,7 +76,7 @@ async fn test_ping_handler(
     if query.contains_key("token") {
         let token = query.get("token").unwrap();
         let signature = client.sign(&token);
-        println!("{:?}", token);
+        debug!("{:?}", token);
         Ok(HttpResponse::Ok()
             .content_type("text/plain")
             .body(json!({ "token": token, "signature": signature }).to_string()))
@@ -120,62 +118,65 @@ async fn main() -> anyhow::Result<()> {
         config.smartlike_key,
         config.network_address,
     );
-    let shared_node = web::Data::new(client.clone());
 
-    let (tx, rx) = channel::<(String, DonationReceipt)>();
+    let (tx, rx) = async_channel::unbounded::<(String, DonationReceipt)>();
 
     // Load pending receipts from previous runs and retry them.
     let iter = db.iterator(IteratorMode::Start);
     for (key, value) in iter {
-        println!("Found pending request {:?} {:?}", key, value);
+        trace!("Found pending request {:?} {:?}", key, value);
         if let (Ok(k), Ok(v)) = (
             String::from_utf8(key.to_vec()),
             String::from_utf8(value.to_vec()),
         ) {
             if let Ok(receipt) = serde_json::from_str(&v) {
-                match tx.send((k, receipt)) {
-                    Ok(_) => {
-                        continue;
-                    }
-                    Err(e) => {
-                        println!("Failed to deserialize receipt: {}", e);
-                    }
-                }
+                tx.send((k, receipt))
+                    .await
+                    .unwrap_or_else(|e| panic!("TX error: {}", e));
+                continue;
             }
         }
-        println!("Failed to enqueue pending receipt. Rejecting.");
-        match db.delete(key) {
-            Ok(_) => {}
-            Err(e) => {
-                println!("Failed to delete db record: {}", e);
-            }
-        }
+        error!(
+            "Failed to enqueue pending receipt. Rejecting {:?} {:?}.",
+            key, value
+        );
+        db.delete(key)
+            .unwrap_or_else(|e| panic!("Failed to delete db record: {}", e));
     }
 
-    actix_rt::spawn({
+    let shutdown = Arc::new(AtomicBool::new(false));
+    let forwarding_thread = actix_rt::spawn({
         let db = db.clone();
         let tx = tx.clone();
+        let client = client.clone();
+        let shutdown = shutdown.clone();
         async move {
-            let timeout = Duration::from_secs(10);
+            let timeout = Duration::from_secs(3);
             loop {
-                if let Ok(msg) = rx.recv_timeout(timeout) {
-                    match client.confirm_donation(&msg.1).await {
-                        Ok(_) => match db.delete(msg.0) {
-                            Ok(_) => {}
-                            Err(e) => {
-                                println!("Failed to delete db record: {}", e);
-                            }
-                        },
-                        Err(e) => {
-                            println!("Failed to process receipt: {}", e.to_string());
-                            // Communications issues? - Wait and retry.
-                            actix_rt::time::sleep(Duration::from_secs(5)).await;
-                            match tx.send(msg) {
-                                Ok(_) => {}
+                match actix_rt::time::timeout(timeout, rx.recv()).await {
+                    Ok(res) => {
+                        if let Ok(msg) = res {
+                            match client.confirm_donation(&msg.1).await {
+                                Ok(_) => db.delete(msg.0).unwrap_or_else(|e| {
+                                    panic!("Failed to delete db record: {}", e)
+                                }),
                                 Err(e) => {
-                                    println!("TX Error: {}", e);
+                                    // Communications issues? - Wait and retry.
+                                    error!("Failed to process receipt: {}", e.to_string());
+                                    actix_rt::time::sleep(Duration::from_secs(
+                                        WAIT_SECONDS_BEFORE_RESEND,
+                                    ))
+                                    .await;
+                                    tx.send(msg)
+                                        .await
+                                        .unwrap_or_else(|e| panic!("TX Error: {}", e));
                                 }
-                            };
+                            }
+                        }
+                    }
+                    Err(_) => {
+                        if shutdown.load(Ordering::Relaxed) {
+                            break;
                         }
                     }
                 }
@@ -183,14 +184,14 @@ async fn main() -> anyhow::Result<()> {
         }
     });
 
-    println!("Listening to {}...", config.listen_address);
+    info!("Listening to {}...", config.listen_address);
     let bind = format!("{}", config.listen_address);
 
     HttpServer::new(move || {
         App::new()
             .wrap(Cors::default())
             .app_data(web::Data::new(tx.clone()))
-            .app_data(shared_node.clone())
+            .app_data(web::Data::new(client.clone()))
             .app_data(db.clone())
             .service(web::resource("/ping").route(web::get().to(test_ping_handler)))
             .service(web::resource("/paypal").route(web::post().to(paypal_handler)))
@@ -200,6 +201,9 @@ async fn main() -> anyhow::Result<()> {
     .run()
     .await
     .unwrap();
+
+    shutdown.store(true, Ordering::Relaxed);
+    forwarding_thread.await.unwrap();
 
     Ok(())
 }
